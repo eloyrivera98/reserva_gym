@@ -26,7 +26,8 @@ options.add_argument("--disable-dev-shm-usage")
 options.add_argument("--disable-gpu")
 options.add_argument("--window-size=1920,1080")
 
-driver = uc.Chrome(options=options)
+options.binary_location = "/usr/bin/google-chrome"
+driver = uc.Chrome(options=options, driver_executable_path="/usr/local/bin/chromedriver")
 wait = WebDriverWait(driver, 15)
 
 # =========================================================
@@ -112,3 +113,4 @@ with open("log_reservas.txt", "a", encoding="utf-8") as f:
 
 driver.quit()
 print("🟢 Script finalizado.")
+
