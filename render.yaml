@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: reserva-upv
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python reserva_upv.py
+    autoDeploy: false
+    envVars:
+      - key: USERNAME
+        value: 48745446
+      - key: PASSWORD
+        value: 7203
+      - key: HORARIO
+        value: MUS075
