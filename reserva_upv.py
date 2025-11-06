@@ -1,89 +1,114 @@
-import os
 import time
+import os
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import chromedriver_autoinstaller
+from dotenv import load_dotenv
 
 # =========================================================
-# ⚙️ CONFIGURACIÓN BÁSICA
+# ⚙️ CONFIGURACIÓN PERSONAL
 # =========================================================
+load_dotenv()  # Carga variables del entorno (.env o Render Environment)
 
-# Instala automáticamente la versión correcta de chromedriver
-chromedriver_autoinstaller.install()
-
-# Lee credenciales y datos desde variables de entorno
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
-HORARIO_OBJETIVO = os.getenv("HORARIO")  # Ejemplo: MUS075
-
-LOGIN_URL = "https://intranet.upv.es/pls/soalu/sic_depact.HSemActividades?p_campus=V&p_codacti=21809&p_vista=intranet&p_idioma=c&p_tipoact=6846"
+USERNAME = os.getenv("USERNAME")  # 🔑 Usuario UPV
+PASSWORD = os.getenv("PASSWORD")  # 🔑 Contraseña UPV
+HORARIO_OBJETIVO = os.getenv("HORARIO", "MUS075")  # Grupo o código del horario
 
 # =========================================================
-# 🚀 CONFIGURACIÓN DE SELENIUM
+# 🧩 CONFIGURACIÓN SELENIUM (Headless Chrome)
 # =========================================================
-options = Options()
-options.add_argument("--headless")  # No abre ventana
+options = uc.ChromeOptions()
+options.add_argument("--headless=new")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
 options.add_argument("--window-size=1920,1080")
 
-service = Service()  # Chromedriver lo instala automáticamente
-driver = webdriver.Chrome(service=service, options=options)
-wait = WebDriverWait(driver, 20)
-
-print("🔵 Iniciando reserva automática UPV...")
+driver = uc.Chrome(options=options)
+wait = WebDriverWait(driver, 15)
 
 # =========================================================
 # 🔐 LOGIN EN INTRANET
 # =========================================================
-driver.get(LOGIN_URL)
+print("🚀 Iniciando sesión en la intranet UPV...")
 
-# Esperar y rellenar formulario de login (ajustar selectores según HTML real)
+driver.get("https://cas.upv.es/cas/login?service=https%3A%2F%2Fwww.upv.es%2Fpls%2Fsoalu%2Fsic_intracas.app_intranet%3FP_CUA%3Dmiupv")
+
 try:
-    wait.until(EC.presence_of_element_located((By.NAME, "p_usuario"))).send_keys(USERNAME)
-    wait.until(EC.presence_of_element_located((By.NAME, "p_clave"))).send_keys(PASSWORD)
-    driver.find_element(By.NAME, "p_login").click()
+    wait.until(EC.presence_of_element_located((By.NAME, "username"))).send_keys(USERNAME)
+    driver.find_element(By.NAME, "password").send_keys(PASSWORD)
+    driver.find_element(By.NAME, "submitBtn").click()
+    print("✅ Login correcto")
 except Exception as e:
-    print("⚠️ Error durante el login:", e)
-
-# =========================================================
-# 🔎 BUSCAR EL ENLACE DEL GRUPO DESEADO
-# =========================================================
-wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "a")))
-enlaces = driver.find_elements(By.TAG_NAME, "a")
-
-target_link = None
-for e in enlaces:
-    if HORARIO_OBJETIVO in e.text:
-        target_link = e.get_attribute("href")
-        break
-
-if not target_link:
-    print(f"❌ No se encontró el grupo {HORARIO_OBJETIVO}.")
+    print("❌ Error al iniciar sesión:", e)
     driver.quit()
     exit()
 
-print(f"✅ Encontrado grupo {HORARIO_OBJETIVO}. Abriendo enlace de reserva...")
+# =========================================================
+# 📅 IR A LA PÁGINA DE HORARIOS
+# =========================================================
+print("📅 Cargando página de horarios...")
+url_horarios = (
+    "https://intranet.upv.es/pls/soalu/sic_depact.HSemActividades?"
+    "p_campus=V&p_tipoact=6846&p_codacti=21809&p_vista=intranet&p_idioma=c"
+)
+driver.get(url_horarios)
 
 # =========================================================
-# 🧾 ABRIR LA PÁGINA DE RESERVA (SE RESERVA AUTOMÁTICAMENTE)
+# 🔍 BUSCAR EL HORARIO OBJETIVO (por texto visible)
 # =========================================================
+print(f"🔎 Buscando enlace con el texto: {HORARIO_OBJETIVO}...")
+
+try:
+    wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "a")))
+    enlaces = driver.find_elements(By.TAG_NAME, "a")
+
+    target_link = None
+    for e in enlaces:
+        if HORARIO_OBJETIVO in e.text:
+            target_link = e.get_attribute("href")
+            break
+
+    if not target_link:
+        print(f"❌ No se encontró el horario {HORARIO_OBJETIVO}")
+        driver.quit()
+        exit()
+    else:
+        print(f"✅ Enlace encontrado: {target_link}")
+
+except Exception as e:
+    print("❌ Error buscando el enlace:", e)
+    driver.quit()
+    exit()
+
+# =========================================================
+# 🖱️ ACCEDER AL ENLACE (RESERVA AUTOMÁTICA)
+# =========================================================
+print("🚀 Accediendo al enlace para realizar la reserva automáticamente...")
 driver.get(target_link)
 
-# Esperar unos segundos para que la reserva se complete
-time.sleep(5)
+# Esperar unos segundos a que se procese
+time.sleep(3)
 
 # =========================================================
-# 🧾 GUARDAR LOG LOCAL
+# ✅ COMPROBAR SI LA RESERVA SE REALIZÓ
 # =========================================================
-resultado = "Reserva completada"
+html = driver.page_source.lower()
+
+if any(palabra in html for palabra in ["reserva", "confirmada", "realizada", "correctamente"]):
+    print("✅ Reserva confirmada correctamente.")
+    resultado = "OK"
+else:
+    print("⚠️ No se detectó confirmación de reserva (quizás sin plazas o error).")
+    resultado = "FALLO"
+
+# =========================================================
+# 🧾 GUARDAR REGISTRO (LOG)
+# =========================================================
 with open("log_reservas.txt", "a", encoding="utf-8") as f:
     f.write(f"{datetime.now()} - {HORARIO_OBJETIVO} -> {resultado}\n")
 
 driver.quit()
-print("🟢 Script finalizado correctamente.")
+print("🟢 Script finalizado.")
