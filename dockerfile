@@ -31,6 +31,6 @@ COPY . /app
 EXPOSE 8080
 
 # -------------------------------
-# Comando por defecto para ejecutar Flask
+# Comando por defecto para ejecutar tu script
 # -------------------------------
-CMD ["python", "main.py"]
+CMD ["python", "reserva_upv.py"]
