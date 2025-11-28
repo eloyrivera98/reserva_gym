@@ -1,35 +1,62 @@
-FROM python:3.10-slim
+# =============================
+# Dockerfile para reservas UPV
+# =============================
 
-ENV DEBIAN_FRONTEND=noninteractive
+# 1️⃣ Imagen base oficial de Python
+FROM python:3.11-slim
 
-# ============================
-# Instalar dependencias básicas
-# ============================
+# 2️⃣ Variables de entorno
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# 3️⃣ Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
-    wget curl unzip xvfb gnupg --no-install-recommends \
+    wget \
+    unzip \
+    curl \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    libnss3 \
+    libxss1 \
+    libgconf-2-4 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libgbm-dev \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# ============================
-# Instalar Chrome for Testing (incluye ChromeDriver compatible)
-# ============================
-RUN CHROME_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE) && \
-    wget -O /tmp/chrome.zip https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip && \
-    wget -O /tmp/chromedriver.zip https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chromedriver-linux64.zip && \
-    unzip /tmp/chrome.zip -d /opt && \
-    unzip /tmp/chromedriver.zip -d /opt && \
-    ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome && \
-    ln -s /opt/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
-    chmod +x /usr/local/bin/chromedriver /usr/bin/google-chrome
+# 4️⃣ Instalar Google Chrome estable
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+       > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
 
-# ============================
-# Copiar proyecto
-# ============================
+# 5️⃣ Instalar ChromeDriver compatible automáticamente
+RUN CHROME_VERSION=$(google-chrome --version | sed 's/Google Chrome //; s/ .*//') \
+    && CHROMEDRIVER_VERSION=$(curl -sS https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_$CHROME_VERSION) \
+    && curl -Lo /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip" \
+    && unzip /tmp/chromedriver.zip -d /tmp/ \
+    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf /tmp/*
+
+# 6️⃣ Crear directorio de la app
 WORKDIR /app
+
+# 7️⃣ Copiar requirements y instalar dependencias Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 8️⃣ Copiar todo el proyecto
 COPY . .
 
-# ============================
-# Instalar Python
-# ============================
-RUN pip install -r requirements.txt
+# 9️⃣ Exponer el puerto que usará Cloud Run
+ENV PORT 8080
+EXPOSE 8080
 
-CMD ["python", "reserva_upv.py"]
+# 1️⃣0️⃣ Comando por defecto para ejecutar Flask
+CMD ["python", "main.py"]
