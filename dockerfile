@@ -1,7 +1,7 @@
 # =========================================
 # Dockerfile para Render – Reservas UPV
 # =========================================
-FROM python:3.11-slim-buster
+FROM python:3.11
 
 # -------------------------------
 # Variables de entorno
@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
 # -------------------------------
-# Instalar dependencias básicas
+# Instalar dependencias básicas y librerías para Chrome
 # -------------------------------
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
